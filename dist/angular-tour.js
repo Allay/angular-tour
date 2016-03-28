@@ -1,6 +1,6 @@
 /**
  * An AngularJS directive for showcasing features of your website
- * @version v0.2.5 - 2015-12-10
+ * @version v0.2.6 - 2016-03-28
  * @link https://github.com/DaftMonk/angular-tour
  * @author Tyler Henkel
  * @license MIT License, http://www.opensource.org/licenses/MIT
@@ -149,7 +149,6 @@
     '$q',
     function ($window, $compile, $interpolate, $timeout, scrollTo, tourConfig, debounce, $q) {
       var startSym = $interpolate.startSymbol(), endSym = $interpolate.endSymbol();
-      var template = '<div tour-popup></div>';
       return {
         require: '^tour',
         restrict: 'EA',
@@ -198,6 +197,17 @@
           attrs.$observe('useSourceScope', function (val) {
             scope.ttSourceScope = !val ? tourConfig.useSourceScope : val === 'true';
           });
+          //defaults: null
+          scope.tourtip = null;
+          attrs.$observe('tourtipTemplate', function (val) {
+            scope.ttTemplate = val;
+
+            scope.template = '<div tour-popup';
+            scope.template += ('="' + scope.ttTemplate + '"');
+            scope.template += '></div>';
+
+            scope.tourtip = $compile(scope.template)(scope);
+          });
           //Init assignments (fix for Angular 1.3+)
           scope.ttNextLabel = tourConfig.nextLabel;
           scope.ttContainerElement = tourConfig.containerElement;
@@ -210,7 +220,7 @@
           scope.ttOpen = false;
           scope.ttAnimation = tourConfig.animation;
           scope.index = parseInt(attrs.tourtipStep, 10);
-          var tourtip = $compile(template)(scope);
+          
           tourCtrl.addStep(scope);
           // wrap this in a time out because the tourtip won't compile right away
           $timeout(function () {
@@ -235,6 +245,9 @@
             return targetScope;
           }
           function calculatePosition(element, container) {
+            if (!scope.tourtip) {
+              return;
+            }
             var minimumLeft = 0;
             // minimum left position of tour tip
             var restrictRight;
@@ -252,12 +265,12 @@
               }
               // restrict right position if the tourtip doesn't fit in the container
               var containerWidth = container[0].getBoundingClientRect().width;
-              if (tourtip.width() + position.width > containerWidth) {
+              if (scope.tourtip.width() + position.width > containerWidth) {
                 restrictRight = containerWidth - position.left + scope.ttMargin;
               }
             }
-            var ttWidth = tourtip.width();
-            var ttHeight = tourtip.height();
+            var ttWidth = scope.tourtip.width();
+            var ttHeight = scope.tourtip.height();
             // Calculate the tourtip's top and left coordinates to center it
             switch (scope.ttPlacement) {
             case 'right':
@@ -309,26 +322,29 @@
             return ttPosition;
           }
           function show() {
-            if (!scope.ttContent) {
+            if (!scope.ttContent || !scope.tourtip) {
               return;
             }
             if (scope.ttAnimation)
-              tourtip.fadeIn();
+              scope.tourtip.fadeIn();
             else {
-              tourtip.css({ display: 'block' });
+              scope.tourtip.css({ display: 'block' });
             }
             var targetElement = scope.ttElement ? angular.element(scope.ttElement) : element;
             if (targetElement == null || targetElement.length === 0)
               throw 'Target element could not be found. Selector: ' + scope.ttElement;
-            angular.element(scope.ttContainerElement).append(tourtip);
+            angular.element(scope.ttContainerElement).append(scope.tourtip);
             var updatePosition = function () {
+              if (!scope.tourtip) {
+                return;
+              }
               var offsetElement = scope.ttContainerElement === 'body' ? undefined : angular.element(scope.ttContainerElement);
               var ttPosition = calculatePosition(targetElement, offsetElement);
               // Now set the calculated positioning.
-              tourtip.css(ttPosition);
+              scope.tourtip.css(ttPosition);
               // Scroll to the tour tip
               var ttPositionTop = parseInt(ttPosition.top), ttPositionLeft = parseInt(ttPosition.left);
-              scrollTo(tourtip, scope.ttContainerElement, -150, -300, tourConfig.scrollSpeed, ttPositionTop, ttPositionLeft);
+              scrollTo(scope.tourtip, scope.ttContainerElement, -150, -300, tourConfig.scrollSpeed, ttPositionTop, ttPositionLeft);
             };
             if (tourConfig.backDrop)
               focusActiveElement(targetElement);
@@ -343,7 +359,10 @@
             }
           }
           function hide() {
-            tourtip.detach();
+            if (!scope.tourtip) {
+              return;
+            }
+            scope.tourtip.detach();
             angular.element($window).unbind('resize.' + scope.$id);
           }
           function focusActiveElement(el) {
@@ -354,8 +373,11 @@
           // Make sure tooltip is destroyed and removed.
           scope.$on('$destroy', function onDestroyTourtip() {
             angular.element($window).unbind('resize.' + scope.$id);
-            tourtip.remove();
-            tourtip = null;
+            if (!scope.tourtip) {
+              return;
+            }
+            scope.tourtip.remove();
+            scope.tourtip = null;
           });
           scope.proceed = function () {
             if (scope.onStepProceed) {
@@ -374,7 +396,9 @@
   ]).directive('tourPopup', function () {
     return {
       replace: true,
-      templateUrl: 'tour/tour.tpl.html',
+      templateUrl: function(elem, attr) {
+        return attr.tourPopup || 'tour/tour.tpl.html';
+      },
       scope: true,
       restrict: 'EA',
       link: function (scope, element, attrs) {
