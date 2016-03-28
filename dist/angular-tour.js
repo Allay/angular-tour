@@ -1,6 +1,6 @@
 /**
  * An AngularJS directive for showcasing features of your website
- * @version v0.2.6 - 2016-03-28
+ * @version v0.2.7 - 2016-03-28
  * @link https://github.com/DaftMonk/angular-tour
  * @author Tyler Henkel
  * @license MIT License, http://www.opensource.org/licenses/MIT
@@ -69,17 +69,17 @@
           step.ttOpen = false;
         });
       };
-      self.cancelTour = function () {
+      self.cancelTour = function (completed) {
         self.unselectAllSteps();
-        self.postTourCallback(false);
+        self.postTourCallback(completed || false);
       };
       $scope.openTour = function () {
         // open at first step if we've already finished tour
         var startStep = self.currentStep >= steps.getCount() || self.currentStep < 0 ? 0 : self.currentStep;
         self.select(startStep);
       };
-      $scope.closeTour = function () {
-        self.cancelTour();
+      $scope.closeTour = function (completed) {
+        self.cancelTour(completed);
       };
     }
   ]).directive('tour', [
@@ -184,6 +184,10 @@
           //defaults: null
           attrs.$observe('onProceed', function (val) {
             scope.onStepProceed = val || null;
+          });
+          //defaults: null
+          attrs.$observe('onSkip', function (val) {
+            scope.onTourSkip = val || null;
           });
           //defaults: null
           attrs.$observe('tourtipElement', function (val) {
@@ -388,6 +392,17 @@
               });
             } else {
               scope.setCurrentStep(scope.getCurrentStep() + 1);
+            }
+          };
+          scope.tourSkip = function () {
+            if (scope.onTourSkip) {
+              var targetScope = getTargetScope();
+              var onSkipResult = targetScope.$eval(scope.onTourSkip);
+              $q.resolve(onSkipResult).then(function () {
+                scope.closeTour(true);
+              });
+            } else {
+              scope.closeTour(true);
             }
           };
         }
